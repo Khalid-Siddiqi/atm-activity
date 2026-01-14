@@ -2,100 +2,91 @@
   {
     "filename": "video/1.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 2, "end": 6},
+      {"action": "a_card_in", "start": 1, "end": 12},
+      {"action": "b_keypad",  "start": 13, "end": 31},
+      {"action": "c_ret_card", "start": 32, "end": 37},
+      {"action": "d_ret_cash", "start": 38, "end": 41}
+    ]
+  },
+  {
+    "filename": "video/2.mp4",
+    "segments": [
+      {"action": "a_card_in", "start": 2, "end": 11},
+      {"action": "b_keypad",  "start": 12, "end": 25},
+      {"action": "c_ret_card", "start": 26, "end": 31},
+      {"action": "d_ret_cash", "start": 32, "end": 34}
+    ]
+  },
+  {
+    "filename": "video/3.mp4",
+    "segments": [
+      {"action": "a_card_in", "start": 4, "end": 12},
+      {"action": "b_keypad",  "start": 13, "end": 25},
+      {"action": "c_ret_card", "start": 26, "end": 32},
+      {"action": "d_ret_cash", "start": 33, "end": 38}
+    ]
+  },
+  {
+    "filename": "video/4.mp4",
+    "segments": [
+      {"action": "a_card_in", "start": 3, "end": 6},
       {"action": "b_keypad",  "start": 7, "end": 15},
-      {"action": "c_ret_card", "start": 20, "end": 22},
-      {"action": "d_ret_cash", "start": 23, "end": 28}
+      {"action": "c_ret_card", "start": 16, "end": 19},
+      {"action": "d_ret_cash", "start": 20, "end": 23}
     ]
   },
   {
-    "filename": "video/atm_02.mp4",
+    "filename": "video/5.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 5, "end": 9},
-      {"action": "b_keypad",  "start": 12, "end": 20},
-      {"action": "c_ret_card", "start": 35, "end": 37},
-      {"action": "d_ret_cash", "start": 38, "end": 42}
+      {"action": "a_card_in", "start": 3, "end": 11},
+      {"action": "b_keypad",  "start": 12, "end": 22},
+      {"action": "c_ret_card", "start": 23, "end": 28},
+      {"action": "d_ret_cash", "start": 29, "end": 34}
     ]
   },
   {
-    "filename": "videos/atm_03.mp4",
+    "filename": "video/6.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 1, "end": 4},
-      {"action": "b_keypad",  "start": 5, "end": 10},
-      {"action": "c_ret_card", "start": 15, "end": 17},
-      {"action": "d_ret_cash", "start": 18, "end": 22}
+      {"action": "a_card_in", "start": 3, "end": 10},
+      {"action": "b_keypad",  "start": 11, "end": 22},
+      {"action": "c_ret_card", "start": 23, "end": 29},
+      {"action": "d_ret_cash", "start": 30, "end": 32}
     ]
   },
   {
-    "filename": "videos/atm_01.mp4",
+    "filename": "video/8.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 2, "end": 6},
-      {"action": "b_keypad",  "start": 7, "end": 15},
-      {"action": "c_ret_card", "start": 20, "end": 22},
-      {"action": "d_ret_cash", "start": 23, "end": 28}
+      {"action": "a_card_in", "start": 2, "end": 9},
+      {"action": "b_keypad",  "start": 10, "end": 22},
+      {"action": "c_ret_card", "start": 23, "end": 28},
+      {"action": "d_ret_cash", "start": 29, "end": 32}
     ]
   },
   {
-    "filename": "videos/atm_02.mp4",
+    "filename": "video/9.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 5, "end": 9},
-      {"action": "b_keypad",  "start": 12, "end": 20},
-      {"action": "c_ret_card", "start": 35, "end": 37},
-      {"action": "d_ret_cash", "start": 38, "end": 42}
+      {"action": "a_card_in", "start": 4, "end": 11},
+      {"action": "b_keypad",  "start": 5, "end": 24},
+      {"action": "c_ret_card", "start": 25, "end": 30},
+      {"action": "d_ret_cash", "start": 31, "end": 33}
     ]
   },
   {
-    "filename": "videos/atm_03.mp4",
+    "filename": "video/10.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 1, "end": 4},
-      {"action": "b_keypad",  "start": 5, "end": 10},
-      {"action": "c_ret_card", "start": 15, "end": 17},
-      {"action": "d_ret_cash", "start": 18, "end": 22}
+      {"action": "a_card_in", "start": 1, "end": 8},
+      {"action": "b_keypad",  "start": 9, "end": 25},
+      {"action": "c_ret_card", "start": 26, "end": 31},
+      {"action": "d_ret_cash", "start": 32, "end": 37}
     ]
   },
   {
-    "filename": "videos/atm_01.mp4",
+    "filename": "video/11.mp4",
     "segments": [
-      {"action": "a_card_in", "start": 2, "end": 6},
-      {"action": "b_keypad",  "start": 7, "end": 15},
-      {"action": "c_ret_card", "start": 20, "end": 22},
-      {"action": "d_ret_cash", "start": 23, "end": 28}
-    ]
-  },
-  {
-    "filename": "videos/atm_02.mp4",
-    "segments": [
-      {"action": "a_card_in", "start": 5, "end": 9},
-      {"action": "b_keypad",  "start": 12, "end": 20},
-      {"action": "c_ret_card", "start": 35, "end": 37},
-      {"action": "d_ret_cash", "start": 38, "end": 42}
-    ]
-  },
-  {
-    "filename": "videos/atm_03.mp4",
-    "segments": [
-      {"action": "a_card_in", "start": 1, "end": 4},
-      {"action": "b_keypad",  "start": 5, "end": 10},
-      {"action": "c_ret_card", "start": 15, "end": 17},
-      {"action": "d_ret_cash", "start": 18, "end": 22}
-    ]
-  },
-  {
-    "filename": "videos/atm_01.mp4",
-    "segments": [
-      {"action": "a_card_in", "start": 2, "end": 6},
-      {"action": "b_keypad",  "start": 7, "end": 15},
-      {"action": "c_ret_card", "start": 20, "end": 22},
-      {"action": "d_ret_cash", "start": 23, "end": 28}
-    ]
-  },
-  {
-    "filename": "videos/atm_02.mp4",
-    "segments": [
-      {"action": "a_card_in", "start": 5, "end": 9},
-      {"action": "b_keypad",  "start": 12, "end": 20},
-      {"action": "c_ret_card", "start": 35, "end": 37},
-      {"action": "d_ret_cash", "start": 38, "end": 42}
+      {"action": "a_card_in", "start": 5, "end": 11},
+      {"action": "b_keypad",  "start": 12, "end": 27},
+      {"action": "c_ret_card", "start": 28, "end": 32},
+      {"action": "d_ret_cash", "start": 33, "end": 38}
     ]
   }
 ]

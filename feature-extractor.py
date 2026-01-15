@@ -11,7 +11,7 @@ OUTPUT_ROOT = r"C:\Users\gutech\Desktop\atm-activity\npy_data"
 
 # Video Config
 # 3 seconds * 30 fps = 90 frames (Covers your max length)
-SEQUENCE_LENGTH = 90 
+SEQUENCE_LENGTH = 30 
 
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
 

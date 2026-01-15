@@ -1,5 +1,9 @@
 import cv2
 import mediapipe as mp
+from mediapipe import solutions # <--- Explicitly import solutions
+
+# ... later down ...
+
 import numpy as np
 import torch
 import torch.nn as nn

@@ -12,7 +12,7 @@ MODEL_SAVE_PATH = "atm_lstm_model_fixed.pth"
 
 # 1. OPTIMIZATION: Reduce Sequence Length
 # 3 seconds * 30 fps = 90 frames (Focus on the action, cut the empty space)
-SEQUENCE_LENGTH = 90  
+SEQUENCE_LENGTH = 30  
 
 # 2. OPTIMIZATION: Simplify Model
 INPUT_SIZE = 63       

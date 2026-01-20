@@ -44,6 +44,7 @@ class ATMSurveillanceLSTM(nn.Module):
         self.fc = nn.Linear(hidden_size, num_classes)
         
     def forward(self, x):
+        # Initialize hidden state on the SAME device as input x (The GPU)
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
         lstm_out, _ = self.lstm(x, (h0, c0))
@@ -91,14 +92,35 @@ def is_overlapping(box1, box2, padding=50):
 
 # --- MAIN SYSTEM ---
 def run_system():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"🚀 System starting on {device}...")
+    # 1. CHECK GPU
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"🚀 GPU DETECTED: {gpu_name}")
+    else:
+        device = torch.device('cpu')
+        gpu_name = "CPU"
+        print("⚠️ GPU NOT DETECTED. Using CPU (Check PyTorch installation).")
 
-    # Load Models
+    # 2. Load YOLOv11 (Context)
+    print("   🔹 Loading YOLOv11...")
     yolo_model = YOLO(YOLO_MODEL_PATH)
+    yolo_model.to(device) # Move YOLOv11 to RTX 3060
+
+    # 3. Load YOLOv4-tiny (Hands)
+    print("   🔹 Loading YOLOv4-tiny...")
     hand_net = cv2.dnn.readNet(HAND_WEIGHTS, HAND_CFG)
-    hand_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-    hand_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+    
+    # Try enabling CUDA for OpenCV (Might fail on standard pip installs, so we try/except)
+    try:
+        hand_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+        hand_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+        print("   ✅ YOLOv4 set to CUDA (GPU)")
+    except:
+        print("   ⚠️ OpenCV CUDA not found. YOLOv4 falling back to CPU (This is fine).")
+        hand_net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        hand_net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
     try:
         ln = hand_net.getLayerNames()
         output_layers = [ln[i - 1] for i in hand_net.getUnconnectedOutLayers()]
@@ -106,11 +128,13 @@ def run_system():
         ln = hand_net.getLayerNames()
         output_layers = [ln[i[0] - 1] for i in hand_net.getUnconnectedOutLayers()]
 
+    # 4. Load LSTM (Action)
+    print("   🔹 Loading LSTM...")
     lstm_model = ATMSurveillanceLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_LAYERS, NUM_CLASSES).to(device)
     lstm_model.load_state_dict(torch.load(LSTM_MODEL_PATH, map_location=device))
     lstm_model.eval()
 
-    # MediaPipe
+    # 5. MediaPipe Setup
     BaseOptions = mp.tasks.BaseOptions
     HandLandmarker = mp.tasks.vision.HandLandmarker
     HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
@@ -125,8 +149,6 @@ def run_system():
     # Buffers & Memory
     current_phase = 0 
     sequence_buffer = collections.deque(maxlen=SEQUENCE_LENGTH)
-    
-    # GLOBAL MEMORY FOR KEYPAD
     global_keypad_box = None 
     
     cap = cv2.VideoCapture(VIDEO_SOURCE)
@@ -150,8 +172,9 @@ def run_system():
                 if not ret: break
                 calc_timestamp_ms += 33 
 
-                # --- A. YOLOv11 ---
-                yolo_results = yolo_model(frame, verbose=False, conf=0.5)[0]
+                # --- A. YOLOv11 (Run on Device) ---
+                # verbose=False keeps console clean
+                yolo_results = yolo_model(frame, verbose=False, conf=0.5, device=device.index)[0]
                 detected_objects = []
                 for box in yolo_results.boxes:
                     cls_id = int(box.cls[0])
@@ -159,17 +182,15 @@ def run_system():
                     label = YOLO_CLASS_MAP.get(cls_id, "Unknown")
                     detected_objects.append(label)
                     
-                    # Store Keypad location permanently if found
                     if label == "Keypad":
                         global_keypad_box = xyxy
                     
                     cv2.rectangle(frame, (xyxy[0], xyxy[1]), (xyxy[2], xyxy[3]), (255, 165, 0), 2)
                     cv2.putText(frame, label, (xyxy[0], xyxy[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,165,0), 2)
 
-                # Draw Memory Keypad (Visual confirmation only)
                 if global_keypad_box is not None and "Keypad" not in detected_objects:
                      gx1, gy1, gx2, gy2 = global_keypad_box
-                     cv2.rectangle(frame, (gx1, gy1), (gx2, gy2), (255, 0, 0), 2) # Blue box for memory
+                     cv2.rectangle(frame, (gx1, gy1), (gx2, gy2), (255, 0, 0), 2)
                      cv2.putText(frame, "Keypad (Mem)", (gx1, gy1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
 
                 # --- B. YOLOv4 (Hand) ---
@@ -197,7 +218,7 @@ def run_system():
                 else:
                     if len(sequence_buffer) > 0: sequence_buffer.clear()
 
-                # --- D. GET LSTM SCORES ---
+                # --- D. GET LSTM SCORES (ON GPU) ---
                 probs = [0.0, 0.0, 0.0, 0.0]
                 if len(sequence_buffer) == SEQUENCE_LENGTH:
                     input_tensor = torch.tensor([list(sequence_buffer)], dtype=torch.float32).to(device)
@@ -208,47 +229,43 @@ def run_system():
                 # --- E. VERIFIER LOGIC ---
                 status_msg = f"Phase {current_phase}: Waiting..."
                 overlap_detected = False
-                
-                # Check Overlap (Use GLOBAL Memory Box if available)
                 if global_keypad_box is not None and hand_box is not None:
                     overlap_detected = is_overlapping(global_keypad_box, hand_box, padding=50)
 
-                # Thresholds
-                CONF_THRESH = 0.40 # 40% Confidence
+                CONF_THRESH = 0.40
 
-                # Phase 1: Card
                 if "Card" in detected_objects and current_phase in [0, 4]:
-                    if probs[0] > CONF_THRESH: # Index 0 = Insert Card
+                    if probs[0] > CONF_THRESH: # Insert Card
                         current_phase = 1
                         status_msg = "✅ Phase 1: Card Inserted"
 
-                # Phase 2: Keypad
                 elif overlap_detected and current_phase >= 1:
-                    # Allow transition if overlap exists and we have minimal confidence
                     if "Card" not in detected_objects:
-                        if probs[1] > CONF_THRESH: # Index 1 = Type PIN
+                        if probs[1] > CONF_THRESH: # PIN
                             current_phase = 2
                             status_msg = "✅ Phase 2: Typing PIN"
                         elif current_phase == 2:
                             status_msg = "✅ Phase 2: Typing PIN (Holding)"
 
-                # Phase 3: Card Out
                 elif "Card" in detected_objects and current_phase >= 2:
-                    if probs[2] > CONF_THRESH: # Index 2 = Take Card
+                    if probs[2] > CONF_THRESH: # Take Card
                         current_phase = 3
                         status_msg = "✅ Phase 3: Card Retrieved"
 
-                # Phase 4: Cash
                 elif "Money" in detected_objects:
-                    if probs[3] > CONF_THRESH: # Index 3 = Take Cash
+                    if probs[3] > CONF_THRESH: # Cash
                         current_phase = 4
                         status_msg = "✅ Phase 4: Cash Retrieved"
 
-                # --- F. RENDER STATUS ---
+                # --- F. RENDER ---
                 cv2.rectangle(frame, (0, 0), (w, 60), (0, 0, 0), -1)
                 color = (0, 255, 0) if "✅" in status_msg else (0, 255, 255)
                 cv2.putText(frame, status_msg, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
                 
+                # Hardware Indicator
+                device_txt = f"Hardware: {gpu_name}"
+                cv2.putText(frame, device_txt, (10, h-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
                 video_writer.write(frame)
                 cv2.imshow("ATM Surveillance System", frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'): break

@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
 import torch
+import os
 from ultralytics import YOLO
+# Fixed Import for MoviePy v2.0+
+from moviepy.video.io.VideoFileClip import VideoFileClip
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -11,9 +14,13 @@ YOLO_MODEL_PATH = "atm.pt"
 HAND_CFG = "cross-hands-yolov4-tiny.cfg"
 HAND_WEIGHTS = "cross-hands-yolov4-tiny.weights"
 VIDEO_SOURCE = r"C:\Users\gutech\Desktop\atm-activity\video\10.mp4"
-OUTPUT_PATH = "atm_surveillance_final.mp4" 
-SIDEBAR_WIDTH = 350  
 
+# 1. Temporary file for recording (MJPG is safe and fast)
+TEMP_OUTPUT = "temp_raw_recording.avi"
+# 2. Final output for WhatsApp
+FINAL_OUTPUT = "atm_surveillance_whatsapp.mp4" 
+
+SIDEBAR_WIDTH = 350  
 YOLO_CLASS_MAP = { 0: "Card", 1: "Keypad", 2: "Money" }
 
 # --- Helpers ---
@@ -53,6 +60,7 @@ def is_overlapping(box1, box2, padding=30):
 # --- MAIN SYSTEM ---
 def run_system():
     # Load Models
+    print("🚀 Initializing Models...")
     yolo_model = YOLO(YOLO_MODEL_PATH)
     if torch.cuda.is_available(): yolo_model.to('cuda')
 
@@ -75,6 +83,7 @@ def run_system():
     
     # Calibration
     cv2.namedWindow("CALIBRATION", cv2.WINDOW_NORMAL)
+    print("Step 1: Select Keypad and press ENTER")
     r = cv2.selectROI("CALIBRATION", test_frame, False, False)
     cv2.destroyWindow("CALIBRATION")
     
@@ -86,13 +95,13 @@ def run_system():
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     new_width = w + SIDEBAR_WIDTH
 
-    # --- CODEC FIX FOR WHATSAPP ---
-    # XVID is highly compatible and usually avoids DLL errors
-    fourcc = cv2.VideoWriter_fourcc(*'XVID') 
+    # --- RECORDING STEP: Use MJPG (Universally supported for writing) ---
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG') 
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
-    video_writer = cv2.VideoWriter(OUTPUT_PATH, fourcc, fps, (new_width, h))
+    video_writer = cv2.VideoWriter(TEMP_OUTPUT, fourcc, fps, (new_width, h))
 
     pin_frames = 0 
+    print("🎥 Recording... Please wait for the video to finish.")
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -128,7 +137,7 @@ def run_system():
         cv2.putText(canvas, "ATM TRANSACTION LOG", (w + 20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255, 255, 255), 1)
         cv2.line(canvas, (w + 20, 65), (w + SIDEBAR_WIDTH - 20, 65), (100, 100, 100), 1)
 
-        # Checklist Rendering
+        # Checklist
         for i, name in enumerate(task_names):
             y_offset = 110 + (i * 60)
             cv2.rectangle(canvas, (w + 20, y_offset - 25), (w + SIDEBAR_WIDTH - 20, y_offset + 25), (30, 30, 30), -1)
@@ -146,7 +155,29 @@ def run_system():
     cap.release()
     video_writer.release()
     cv2.destroyAllWindows()
-    print(f"✅ Analysis Complete. File saved as {OUTPUT_PATH}")
+
+    # --- THE MAGIC FIX FOR WHATSAPP ---
+    print("\n🔄 Converting to WhatsApp Format... (Do not close)")
+    try:
+        # Load the temp file
+        clip = VideoFileClip(TEMP_OUTPUT)
+        
+        # Convert to H.264 (WhatsApp Standard)
+        # REMOVED 'verbose=False' so it works on your version
+        clip.write_videofile(FINAL_OUTPUT, codec="libx264", audio=False, logger=None)
+        
+        # Close clip to release file handle
+        clip.close()
+
+        # Delete temp file
+        if os.path.exists(TEMP_OUTPUT):
+            os.remove(TEMP_OUTPUT)
+            
+        print(f"\n✅ SUCCESS! File ready for WhatsApp: {FINAL_OUTPUT}")
+        
+    except Exception as e:
+        print(f"❌ Error during conversion: {e}")
+        print(f"⚠️ You can try using the raw file: {TEMP_OUTPUT}")
 
 if __name__ == "__main__":
     run_system()

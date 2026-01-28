@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
 import torch
+import os
 from ultralytics import YOLO
+# NEW: Import moviepy to handle the WhatsApp conversion
+from moviepy.video.io.VideoFileClip import VideoFileClip
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -11,19 +14,22 @@ YOLO_MODEL_PATH = "atm.pt"
 HAND_CFG = "cross-hands-yolov4-tiny.cfg"
 HAND_WEIGHTS = "cross-hands-yolov4-tiny.weights"
 VIDEO_SOURCE = r"C:\Users\gutech\Desktop\atm-activity\video\1.mp4"
-# Using 'mp4v' is the safest native option for .mp4 without external DLLs
-OUTPUT_PATH = "atm_client_demo_final.mp4" 
+
+# 1. We save to a temp file first (AVI is most stable for recording)
+TEMP_OUTPUT = "temp_recording.avi"
+# 2. We allow the script to convert it to the final WhatsApp file
+FINAL_OUTPUT = "atm_demo_whatsapp_ready.mp4"
+
 SIDEBAR_WIDTH = 350  
-
-# Visual Colors (BGR Format)
-COLORS = {
-    "Card": (255, 100, 0),    # Blue
-    "Keypad": (0, 165, 255),  # Orange
-    "Money": (0, 255, 0),     # Green
-    "Hand": (0, 255, 255)     # Yellow
-}
-
 YOLO_CLASS_MAP = { 0: "Card", 1: "Keypad", 2: "Money" }
+
+# Visual Colors (BGR)
+COLORS = {
+    "Card": (255, 100, 0),    
+    "Keypad": (0, 165, 255),  
+    "Money": (0, 255, 0),     
+    "Hand": (0, 255, 255)     
+}
 
 # --- Helpers ---
 def get_hand_box_yolov4(net, output_layers, frame):
@@ -62,6 +68,7 @@ def is_overlapping(box1, box2, padding=30):
 # --- MAIN SYSTEM ---
 def run_system():
     # Load Models
+    print("🚀 Initializing Models...")
     yolo_model = YOLO(YOLO_MODEL_PATH)
     if torch.cuda.is_available(): yolo_model.to('cuda')
 
@@ -85,6 +92,7 @@ def run_system():
     
     # Calibration
     cv2.namedWindow("CALIBRATION", cv2.WINDOW_NORMAL)
+    print("\n[STEP 1] Draw a box around the Keypad and press ENTER")
     r = cv2.selectROI("CALIBRATION", test_frame, False, False)
     cv2.destroyWindow("CALIBRATION")
     
@@ -96,44 +104,40 @@ def run_system():
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     new_width = w + SIDEBAR_WIDTH
 
-    # --- CODEC: mp4v for WhatsApp compatibility ---
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+    # --- RECORDING SETUP (Using MJPG/AVI for stability) ---
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG') 
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
-    video_writer = cv2.VideoWriter(OUTPUT_PATH, fourcc, fps, (new_width, h))
+    video_writer = cv2.VideoWriter(TEMP_OUTPUT, fourcc, fps, (new_width, h))
 
     pin_frames = 0 
+    print("🎥 Processing video... Please wait until the end.")
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret: break
 
-        # 1. RUN YOLOv11 (GPU)
+        # 1. RUN YOLOv11
         results = yolo_model(frame, verbose=False, conf=0.4)[0]
         detected_objects = []
 
-        # 2. DRAW YOLOv11 DETECTIONS (FOR CLIENTS)
+        # 2. DRAW YOLOv11 DETECTIONS
         for box in results.boxes:
             cls_id = int(box.cls[0])
             label = YOLO_CLASS_MAP.get(cls_id, "Unknown")
             conf = float(box.conf[0])
             detected_objects.append(label)
             
-            # Draw Box
             x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
             color = COLORS.get(label, (255, 255, 255))
             
-            # Don't draw "Keypad" detection box if you want to keep it totally clean,
-            # but usually clients like seeing that the AI detects the keypad object itself.
-            # I will keep object detection boxes, but I have removed the "ROI" box below.
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
-            # Draw Label
             label_text = f"{label} {conf:.2f}"
             (w_text, h_text), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             cv2.rectangle(frame, (x1, y1 - 20), (x1 + w_text, y1), color, -1)
             cv2.putText(frame, label_text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
-        # 3. RUN & DRAW HAND DETECTION
+        # 3. RUN HAND DETECTION
         hand_box = get_hand_box_yolov4(hand_net, output_layers, frame)
         if hand_box:
             x, y, x2, y2 = hand_box
@@ -141,25 +145,20 @@ def run_system():
             cv2.putText(frame, "Hand", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS["Hand"], 2)
 
         # --- LOGIC GATES ---
-        # Phase 1: Card Insertion
         if "Card" in detected_objects and not checklist[0] and not active_p1:
             active_p1 = True
         if active_p1 and "Card" not in detected_objects:
             checklist[0] = True; active_p1 = False
 
-        # Phase 2: PIN Entry
         elif checklist[0] and not checklist[1]:
             if hand_box and is_overlapping(global_keypad_box, hand_box):
                 pin_frames += 1
                 if pin_frames > 15: checklist[1] = True
 
-        # Phase 3: Card Retrieval
         elif checklist[1] and not checklist[2]:
             if "Card" in detected_objects and not active_p3: active_p3 = True
-            # Per your request: Complete P3 when Money is seen (Phase 4 start)
             if "Money" in detected_objects: checklist[2] = True 
 
-        # Phase 4: Cash Withdrawal
         if "Money" in detected_objects:
             checklist[3] = True
             if checklist[1]: checklist[2] = True 
@@ -168,13 +167,9 @@ def run_system():
         canvas = np.zeros((h, new_width, 3), dtype=np.uint8)
         canvas[0:h, 0:w] = frame 
 
-        # Sidebar Header
         cv2.putText(canvas, "ATM TRANSACTION LOG", (w + 20, 50), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255, 255, 255), 1)
         cv2.line(canvas, (w + 20, 65), (w + SIDEBAR_WIDTH - 20, 65), (100, 100, 100), 1)
         
-        # NOTE: I have REMOVED the Keypad ROI drawing here as requested.
-        # The orange box will NOT appear on the final video.
-
         for i, name in enumerate(task_names):
             y_offset = 110 + (i * 60)
             
@@ -184,9 +179,9 @@ def run_system():
             
             # Status Dot
             if checklist[i]:
-                cv2.circle(canvas, (w + SIDEBAR_WIDTH - 50, y_offset + 5), 8, (0, 255, 0), -1) # Green
+                cv2.circle(canvas, (w + SIDEBAR_WIDTH - 50, y_offset + 5), 8, (0, 255, 0), -1) 
             else:
-                cv2.circle(canvas, (w + SIDEBAR_WIDTH - 50, y_offset + 5), 8, (80, 80, 80), 2) # Grey
+                cv2.circle(canvas, (w + SIDEBAR_WIDTH - 50, y_offset + 5), 8, (80, 80, 80), 2) 
 
         video_writer.write(canvas)
         cv2.imshow("ATM Client Demo", canvas)
@@ -195,7 +190,28 @@ def run_system():
     cap.release()
     video_writer.release()
     cv2.destroyAllWindows()
-    print(f"✅ Client Demo Video Saved: {OUTPUT_PATH}")
+
+    # --- CONVERSION STEP ---
+    print("\n🔄 Converting video for WhatsApp compatibility... (This takes a few seconds)")
+    try:
+        # Load the temp AVI
+        clip = VideoFileClip(TEMP_OUTPUT)
+        
+        # Write the final MP4 with H.264 codec (WhatsApp standard)
+        # REMOVED 'verbose=False' which caused the crash
+        clip.write_videofile(FINAL_OUTPUT, codec="libx264", audio=False, logger=None)
+        
+        # Cleanup temp file
+        clip.close()
+        if os.path.exists(TEMP_OUTPUT):
+            os.remove(TEMP_OUTPUT)
+            
+        print(f"\n✅ SUCCESS! File saved as: {FINAL_OUTPUT}")
+        print("📲 You can now upload this file to WhatsApp.")
+        
+    except Exception as e:
+        print(f"❌ Conversion Failed: {e}")
+        print(f"⚠️ The raw recording is still available as {TEMP_OUTPUT}")
 
 if __name__ == "__main__":
     run_system()

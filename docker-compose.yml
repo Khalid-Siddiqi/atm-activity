@@ -1,0 +1,21 @@
+services:
+  atm-activity:
+    build: .
+    image: atm-activity
+    volumes:
+      # Input videos go here; output videos are written back here
+      - ./videos:/app/videos
+      # X11 socket for display forwarding (Linux/Mac)
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    environment:
+      # Required for the ROI calibration window to appear on the host screen.
+      #
+      # Linux/Mac — set DISPLAY before running:
+      #   export DISPLAY=:0          (or whatever your DISPLAY is)
+      #   docker compose up
+      #
+      # Windows — install VcXsrv (https://sourceforge.net/projects/vcxsrv/),
+      #   launch it with "Disable access control" checked, then set:
+      #   set DISPLAY=<your-host-ip>:0.0
+      #   docker compose up
+      - DISPLAY=${DISPLAY}
